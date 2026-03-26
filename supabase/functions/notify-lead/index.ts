@@ -1,0 +1,102 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+
+serve(async (req) => {
+  if (req.method === "OPTIONS")
+    return new Response(null, { headers: corsHeaders });
+
+  try {
+    const { lead, conversation } = await req.json();
+
+    if (!lead?.name || !lead?.email || !lead?.type) {
+      return new Response(
+        JSON.stringify({ error: "Missing lead info (name, email, type)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+    if (!SLACK_API_KEY) throw new Error("SLACK_API_KEY is not configured");
+
+    const emoji = lead.type === "sales" ? "💰" : "🛠️";
+    const typeLabel = lead.type === "sales" ? "Sales Lead" : "Service Request";
+
+    // Format conversation for readability
+    const convoText = conversation
+      .map((m: { role: string; content: string }) =>
+        `${m.role === "user" ? "👤 Customer" : "🤖 Bot"}: ${m.content}`
+      )
+      .join("\n\n");
+
+    const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
+
+    // Send to Slack - get channels first to find a suitable one
+    // We'll post to #general or the first available channel
+    const channelsResp = await fetch(`${GATEWAY_URL}/conversations.list?types=public_channel&limit=100`, {
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": SLACK_API_KEY,
+      },
+    });
+    const channelsData = await channelsResp.json();
+
+    // Try #leads, #sales, or #general
+    let targetChannel = "general";
+    if (channelsData.ok && channelsData.channels) {
+      const preferred = ["leads", "sales", "general"];
+      for (const name of preferred) {
+        const found = channelsData.channels.find(
+          (c: { name: string }) => c.name === name
+        );
+        if (found) {
+          targetChannel = found.id;
+          break;
+        }
+      }
+    }
+
+    const slackResp = await fetch(`${GATEWAY_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": SLACK_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: targetChannel,
+        text: slackMessage,
+        username: "Lead Bot",
+        icon_emoji: emoji,
+      }),
+    });
+
+    const slackResult = await slackResp.json();
+    if (!slackResp.ok || !slackResult.ok) {
+      console.error("Slack API error:", JSON.stringify(slackResult));
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        slack: slackResult.ok ?? false,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (e) {
+    console.error("notify-lead error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});

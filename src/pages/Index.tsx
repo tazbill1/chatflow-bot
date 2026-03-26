@@ -1,16 +1,31 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { ChatWidget } from "@/components/ChatWidget";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Hero */}
+      <header className="flex flex-col items-center justify-center min-h-[70vh] px-6 text-center">
+        <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+          </span>
+          AI-Powered Support
+        </div>
+        <h1 className="text-4xl md:text-6xl font-bold tracking-tight max-w-3xl leading-tight">
+          We're here to help you <span className="text-primary">succeed</span>
+        </h1>
+        <p className="mt-4 text-muted-foreground text-lg md:text-xl max-w-xl">
+          Got questions about our product or need support? Chat with our AI assistant — available 24/7.
+        </p>
+        <p className="mt-8 text-sm text-muted-foreground">
+          Click the chat bubble in the bottom-right corner to get started →
+        </p>
+      </header>
+
+      <ChatWidget />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
