@@ -168,8 +168,8 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       {/* Header */}
       <div className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
         <div>
-          <h3 className="font-semibold text-sm">Chat with us</h3>
-          <p className="text-xs opacity-80">We typically reply instantly</p>
+        <h3 className="font-semibold text-sm">Werkbot</h3>
+          <p className="text-xs opacity-80">Your WerkandMe assistant</p>
         </div>
       </div>
 
