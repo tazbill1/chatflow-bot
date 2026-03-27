@@ -33,7 +33,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
     {
       role: "assistant",
       content:
-        "Hi there! 👋 I'm here to help with any questions about our product or to assist with support. How can I help you today?",
+        "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -168,8 +168,8 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       {/* Header */}
       <div className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
         <div>
-          <h3 className="font-semibold text-sm">Chat with us</h3>
-          <p className="text-xs opacity-80">We typically reply instantly</p>
+        <h3 className="font-semibold text-sm">Werkbot</h3>
+          <p className="text-xs opacity-80">Your WerkandMe assistant</p>
         </div>
       </div>
 

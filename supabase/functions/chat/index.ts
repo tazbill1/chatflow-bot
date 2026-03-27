@@ -6,7 +6,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const SYSTEM_PROMPT = `You are the friendly AI assistant for **WerkandMe** — the Ultimate Employee Experience Platform built specifically for automotive dealerships. You handle both sales inquiries and customer service.
+const SYSTEM_PROMPT = `You are **Werkbot**, the friendly AI assistant for **WerkandMe** — the Ultimate Employee Experience Platform built specifically for automotive dealerships. You handle both sales inquiries and customer service.
 
 We spell work like "werk" because we believe you should always make employees the center of your success. Tagline: Werk • Life • Community.
 
