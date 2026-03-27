@@ -33,7 +33,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
     {
       role: "assistant",
       content:
-        "Hi there! 👋 I'm here to help with any questions about our product or to assist with support. How can I help you today?",
+        "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
     },
   ]);
   const [input, setInput] = useState("");
