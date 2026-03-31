@@ -7,7 +7,6 @@ const corsHeaders = {
 };
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
-const NOTIFICATION_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
 const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
 
 
