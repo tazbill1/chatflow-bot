@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Loader2, Trash2, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
@@ -32,6 +32,12 @@ const DEFAULT_GREETING: Message = {
     "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
 };
 
+const QUICK_REPLIES = [
+  "What is WerkandMe?",
+  "Book a Demo",
+  "I need support",
+];
+
 function loadMessages(): Message[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -49,6 +55,23 @@ function saveMessages(messages: Message[]) {
   } catch {}
 }
 
+// Notification sound using Web Audio API
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 660;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+
 interface ChatPanelProps {
   onClose: () => void;
 }
@@ -57,6 +80,8 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -67,6 +92,8 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  const showQuickReplies = messages.length === 1 && messages[0].role === "assistant";
 
   const sendNotification = async (lead: ReturnType<typeof extractLead>, conversation: Message[]) => {
     if (!lead) return;
@@ -85,14 +112,17 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
     }
   };
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
+  const handleSend = useCallback(async (overrideInput?: string) => {
+    const trimmed = (overrideInput ?? input).trim();
     if (!trimmed || isLoading) return;
+
+    setLastError(null);
+    setLastFailedInput(null);
 
     const userMsg: Message = { role: "user", content: trimmed };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
-    setInput("");
+    if (!overrideInput) setInput("");
     setIsLoading(true);
 
     let assistantSoFar = "";
@@ -157,6 +187,9 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
         }
       }
 
+      // Play notification sound when response is complete
+      playNotificationSound();
+
       // Check for lead capture
       const lead = extractLead(assistantSoFar);
       if (lead) {
@@ -175,14 +208,35 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       }
     } catch (err) {
       console.error("Chat error:", err);
+      setLastError("Sorry, I'm having trouble connecting. Please try again.");
+      setLastFailedInput(trimmed);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "Sorry, I'm having trouble connecting. Please try again in a moment." },
+        { role: "assistant", content: "Sorry, I'm having trouble connecting." },
       ]);
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
     }
+  }, [input, isLoading, messages]);
+
+  const handleRetry = () => {
+    if (!lastFailedInput) return;
+    // Remove the last error message
+    setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
+    const retryInput = lastFailedInput;
+    setLastError(null);
+    setLastFailedInput(null);
+    // Remove the failed user message too
+    setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
+    handleSend(retryInput);
+  };
+
+  const handleClearChat = () => {
+    setMessages([DEFAULT_GREETING]);
+    setLastError(null);
+    setLastFailedInput(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   return (
@@ -193,12 +247,20 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
           <h3 className="font-semibold text-sm">Werkbot</h3>
           <p className="text-xs opacity-80">Your WerkandMe assistant</p>
         </div>
+        <button
+          onClick={handleClearChat}
+          className="opacity-70 hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-white/10"
+          aria-label="Clear chat"
+          title="Clear chat"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.map((msg, i) => (
-          <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={cn("flex animate-fade-in", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
               className={cn(
                 "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
@@ -227,11 +289,46 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
             </div>
           </div>
         ))}
+
+        {/* Typing indicator */}
         {isLoading && messages[messages.length - 1]?.role === "user" && (
-          <div className="flex justify-start">
-            <div className="bg-chat-bubble-bot text-chat-bubble-bot-foreground rounded-2xl rounded-bl-md px-4 py-2.5">
-              <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="flex justify-start animate-fade-in">
+            <div className="bg-chat-bubble-bot text-chat-bubble-bot-foreground rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+              <span className="text-xs text-muted-foreground mr-1">Werkbot is typing</span>
+              <span className="flex gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:0ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:150ms]" />
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60 animate-bounce [animation-delay:300ms]" />
+              </span>
             </div>
+          </div>
+        )}
+
+        {/* Error retry button */}
+        {lastError && !isLoading && (
+          <div className="flex justify-center animate-fade-in">
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 bg-destructive/10 hover:bg-destructive/15 px-3 py-1.5 rounded-full transition-colors"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Tap to retry
+            </button>
+          </div>
+        )}
+
+        {/* Quick reply suggestions */}
+        {showQuickReplies && !isLoading && (
+          <div className="flex flex-wrap gap-2 pt-1 animate-fade-in">
+            {QUICK_REPLIES.map((label) => (
+              <button
+                key={label}
+                onClick={() => handleSend(label)}
+                className="text-xs bg-accent text-accent-foreground px-3 py-1.5 rounded-full hover:opacity-80 transition-opacity border border-border"
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
       </div>
