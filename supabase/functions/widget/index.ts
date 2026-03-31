@@ -73,6 +73,7 @@ const WIDGET_JS = `
   var msgs = document.getElementById("werkbot-msgs");
   var input = document.getElementById("werkbot-input");
   var sendBtn = document.getElementById("werkbot-send");
+  var closeBtn = document.getElementById("werkbot-close");
   var history = [{role:"assistant",content:"Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?"}];
   var loading = false;
 
