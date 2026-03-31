@@ -7,69 +7,9 @@ const corsHeaders = {
 };
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
-const NOTIFICATION_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
 const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
 
 
-async function sendEmailNotifications(
-  lead: { name: string; email: string; type: string; summary?: string },
-  convoText: string
-) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for email");
-    return;
-  }
-
-  const emoji = lead.type === "sales" ? "💰" : "🛠️";
-  const typeLabel = lead.type === "sales" ? "Sales Lead" : "Service Request";
-  const subject = `${emoji} New ${typeLabel}: ${lead.name}`;
-
-  const htmlBody = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1a1a1a;">${emoji} New ${typeLabel}</h2>
-      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Name</td><td style="padding: 8px;">${lead.name}</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Email</td><td style="padding: 8px;"><a href="mailto:${lead.email}">${lead.email}</a></td></tr>
-        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Type</td><td style="padding: 8px;">${typeLabel}</td></tr>
-        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Summary</td><td style="padding: 8px;">${lead.summary || "N/A"}</td></tr>
-      </table>
-      <h3 style="color: #1a1a1a; margin-top: 24px;">Conversation</h3>
-      <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${convoText}</div>
-    </div>
-  `;
-
-  for (const recipientEmail of NOTIFICATION_EMAILS) {
-    try {
-      const id = crypto.randomUUID();
-      const resp = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          templateName: "lead-notification",
-          recipientEmail,
-          idempotencyKey: `lead-notify-${id}-${recipientEmail}`,
-          templateData: {
-            name: lead.name,
-            email: lead.email,
-            type: typeLabel,
-            summary: lead.summary || "N/A",
-            emoji,
-            conversation: convoText,
-          },
-        }),
-      });
-      const result = await resp.json();
-      console.log(`Email to ${recipientEmail}:`, JSON.stringify(result));
-    } catch (err) {
-      console.error(`Failed to send email to ${recipientEmail}:`, err);
-    }
-  }
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -133,10 +73,6 @@ serve(async (req) => {
       console.error("Slack API error:", JSON.stringify(slackResult));
     }
 
-    // Send email notifications
-    sendEmailNotifications(lead, convoText).catch((err) =>
-      console.error("Email notification error:", err)
-    );
 
     return new Response(
       JSON.stringify({
