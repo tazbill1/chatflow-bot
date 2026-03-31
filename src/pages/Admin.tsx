@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, MessageSquare, TrendingUp, Clock } from "lucide-react";
+import { TranscriptDialog } from "@/components/admin/TranscriptDialog";
+import { DateRangeFilter } from "@/components/admin/DateRangeFilter";
+import { CsvExport } from "@/components/admin/CsvExport";
 
 const ADMIN_PASS = "werkadmin2026";
 
@@ -93,6 +96,24 @@ function StatCard({ title, value, icon: Icon, sub }: { title: string; value: str
   );
 }
 
+const LEAD_CSV_COLUMNS = [
+  { key: "name", label: "Name" },
+  { key: "email", label: "Email" },
+  { key: "business", label: "Business" },
+  { key: "phone", label: "Phone" },
+  { key: "type", label: "Type" },
+  { key: "summary", label: "Summary" },
+  { key: "created_at", label: "Date" },
+];
+
+const SESSION_CSV_COLUMNS = [
+  { key: "session_id", label: "Session ID" },
+  { key: "message_count", label: "Messages" },
+  { key: "led_to_lead", label: "Led to Lead" },
+  { key: "first_message_at", label: "Started" },
+  { key: "last_message_at", label: "Last Active" },
+];
+
 function LeadsTable({ leads }: { leads: Lead[] }) {
   if (leads.length === 0) return <p className="text-muted-foreground text-sm py-8 text-center">No leads yet</p>;
 
@@ -106,6 +127,7 @@ function LeadsTable({ leads }: { leads: Lead[] }) {
             <th className="text-left py-3 px-2 font-medium text-muted-foreground hidden md:table-cell">Business</th>
             <th className="text-left py-3 px-2 font-medium text-muted-foreground hidden lg:table-cell">Phone</th>
             <th className="text-left py-3 px-2 font-medium text-muted-foreground">Type</th>
+            <th className="text-left py-3 px-2 font-medium text-muted-foreground">Chat</th>
             <th className="text-left py-3 px-2 font-medium text-muted-foreground hidden md:table-cell">Summary</th>
             <th className="text-left py-3 px-2 font-medium text-muted-foreground">Date</th>
           </tr>
@@ -121,6 +143,9 @@ function LeadsTable({ leads }: { leads: Lead[] }) {
                 <Badge variant={lead.type === "sales" ? "default" : "secondary"}>
                   {lead.type}
                 </Badge>
+              </td>
+              <td className="py-3 px-2">
+                <TranscriptDialog leadName={lead.name} conversation={lead.conversation} />
               </td>
               <td className="py-3 px-2 text-muted-foreground max-w-[200px] truncate hidden md:table-cell">{lead.summary || "—"}</td>
               <td className="py-3 px-2 text-muted-foreground whitespace-nowrap">
@@ -175,11 +200,30 @@ function SessionsTable({ sessions }: { sessions: Session[] }) {
   );
 }
 
+function filterByDateRange<T extends Record<string, any>>(items: T[], dateKey: string, start?: Date, end?: Date): T[] {
+  return items.filter((item) => {
+    const d = new Date(item[dateKey]);
+    if (start && d < start) return false;
+    if (end) {
+      const endOfDay = new Date(end);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (d > endOfDay) return false;
+    }
+    return true;
+  });
+}
+
 export default function Admin() {
   const [authed, setAuthed] = useState(() => sessionStorage.getItem("werkbot-admin") === "1");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Date filters
+  const [leadStart, setLeadStart] = useState<Date | undefined>();
+  const [leadEnd, setLeadEnd] = useState<Date | undefined>();
+  const [sessionStart, setSessionStart] = useState<Date | undefined>();
+  const [sessionEnd, setSessionEnd] = useState<Date | undefined>();
 
   useEffect(() => {
     if (!authed) return;
@@ -199,6 +243,9 @@ export default function Admin() {
     }
     load();
   }, [authed]);
+
+  const filteredLeads = useMemo(() => filterByDateRange(leads, "created_at", leadStart, leadEnd), [leads, leadStart, leadEnd]);
+  const filteredSessions = useMemo(() => filterByDateRange(sessions, "first_message_at", sessionStart, sessionEnd), [sessions, sessionStart, sessionEnd]);
 
   if (!authed) return <AuthGate onAuth={() => setAuthed(true)} />;
 
@@ -241,15 +288,35 @@ export default function Admin() {
               </TabsList>
               <TabsContent value="leads">
                 <Card>
-                  <CardContent className="pt-6">
-                    <LeadsTable leads={leads} />
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <DateRangeFilter
+                        startDate={leadStart}
+                        endDate={leadEnd}
+                        onStartChange={setLeadStart}
+                        onEndChange={setLeadEnd}
+                        onClear={() => { setLeadStart(undefined); setLeadEnd(undefined); }}
+                      />
+                      <CsvExport data={filteredLeads} filename="werkbot-leads" columns={LEAD_CSV_COLUMNS} />
+                    </div>
+                    <LeadsTable leads={filteredLeads} />
                   </CardContent>
                 </Card>
               </TabsContent>
               <TabsContent value="sessions">
                 <Card>
-                  <CardContent className="pt-6">
-                    <SessionsTable sessions={sessions} />
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <DateRangeFilter
+                        startDate={sessionStart}
+                        endDate={sessionEnd}
+                        onStartChange={setSessionStart}
+                        onEndChange={setSessionEnd}
+                        onClear={() => { setSessionStart(undefined); setSessionEnd(undefined); }}
+                      />
+                      <CsvExport data={filteredSessions} filename="werkbot-sessions" columns={SESSION_CSV_COLUMNS} />
+                    </div>
+                    <SessionsTable sessions={filteredSessions} />
                   </CardContent>
                 </Card>
               </TabsContent>
