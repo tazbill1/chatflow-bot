@@ -33,6 +33,7 @@ serve(async (req) => {
         client_id: clientId,
         client_secret: clientSecret,
         code: grant_token,
+        redirect_uri: "http://localhost",
       }),
     });
 
