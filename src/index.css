@@ -40,8 +40,8 @@ All colors MUST be HSL.
 
     --chat-bubble-user: 93 60% 50%;
     --chat-bubble-user-foreground: 224 60% 16%;
-    --chat-bubble-bot: 224 40% 22%;
-    --chat-bubble-bot-foreground: 210 20% 90%;
+    --chat-bubble-bot: 220 15% 94%;
+    --chat-bubble-bot-foreground: 224 25% 15%;
     --chat-header: 224 65% 14%;
     --chat-header-foreground: 0 0% 100%;
 
