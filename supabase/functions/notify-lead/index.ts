@@ -7,6 +7,98 @@ const corsHeaders = {
 };
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+const NOTIFICATION_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
+
+async function findChannelByName(
+  targetNames: string[],
+  lovableKey: string,
+  slackKey: string
+): Promise<string | null> {
+  let cursor = "";
+  do {
+    const url = `${GATEWAY_URL}/conversations.list?types=public_channel&limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": slackKey,
+      },
+    });
+    const data = await resp.json();
+    if (!data.ok) {
+      console.error("conversations.list error:", data.error);
+      break;
+    }
+    for (const name of targetNames) {
+      const found = data.channels?.find(
+        (c: { name: string }) => c.name === name
+      );
+      if (found) return found.id;
+    }
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return null;
+}
+
+async function sendEmailNotifications(
+  lead: { name: string; email: string; type: string; summary?: string },
+  convoText: string
+) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceRoleKey) {
+    console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for email");
+    return;
+  }
+
+  const emoji = lead.type === "sales" ? "💰" : "🛠️";
+  const typeLabel = lead.type === "sales" ? "Sales Lead" : "Service Request";
+  const subject = `${emoji} New ${typeLabel}: ${lead.name}`;
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #1a1a1a;">${emoji} New ${typeLabel}</h2>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Name</td><td style="padding: 8px;">${lead.name}</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Email</td><td style="padding: 8px;"><a href="mailto:${lead.email}">${lead.email}</a></td></tr>
+        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Type</td><td style="padding: 8px;">${typeLabel}</td></tr>
+        <tr><td style="padding: 8px; font-weight: bold; color: #555;">Summary</td><td style="padding: 8px;">${lead.summary || "N/A"}</td></tr>
+      </table>
+      <h3 style="color: #1a1a1a; margin-top: 24px;">Conversation</h3>
+      <div style="background: #f5f5f5; padding: 16px; border-radius: 8px; white-space: pre-wrap; font-size: 14px; line-height: 1.6;">${convoText}</div>
+    </div>
+  `;
+
+  for (const recipientEmail of NOTIFICATION_EMAILS) {
+    try {
+      const id = crypto.randomUUID();
+      const resp = await fetch(`${supabaseUrl}/functions/v1/send-transactional-email`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateName: "lead-notification",
+          recipientEmail,
+          idempotencyKey: `lead-notify-${id}-${recipientEmail}`,
+          templateData: {
+            name: lead.name,
+            email: lead.email,
+            type: typeLabel,
+            summary: lead.summary || "N/A",
+            emoji,
+            conversation: convoText,
+          },
+        }),
+      });
+      const result = await resp.json();
+      console.log(`Email to ${recipientEmail}:`, JSON.stringify(result));
+    } catch (err) {
+      console.error(`Failed to send email to ${recipientEmail}:`, err);
+    }
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -31,7 +123,6 @@ serve(async (req) => {
     const emoji = lead.type === "sales" ? "💰" : "🛠️";
     const typeLabel = lead.type === "sales" ? "Sales Lead" : "Service Request";
 
-    // Format conversation for readability
     const convoText = conversation
       .map((m: { role: string; content: string }) =>
         `${m.role === "user" ? "👤 Customer" : "🤖 Bot"}: ${m.content}`
@@ -40,50 +131,43 @@ serve(async (req) => {
 
     const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
 
-    // Send to Slack - get channels first to find a suitable one
-    // We'll post to #general or the first available channel
-    const channelsResp = await fetch(`${GATEWAY_URL}/conversations.list?types=public_channel&limit=100`, {
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": SLACK_API_KEY,
-      },
-    });
-    const channelsData = await channelsResp.json();
+    // Find channel by name with pagination
+    const channelId = await findChannelByName(
+      ["leads", "sales", "general"],
+      LOVABLE_API_KEY,
+      SLACK_API_KEY
+    );
 
-    // Try #leads, #sales, or #general
-    let targetChannel = "general";
-    if (channelsData.ok && channelsData.channels) {
-      const preferred = ["leads", "sales", "general"];
-      for (const name of preferred) {
-        const found = channelsData.channels.find(
-          (c: { name: string }) => c.name === name
-        );
-        if (found) {
-          targetChannel = found.id;
-          break;
-        }
+    let slackResult: Record<string, unknown> = { ok: false, error: "no_channel_found" };
+
+    if (channelId) {
+      const slackResp = await fetch(`${GATEWAY_URL}/chat.postMessage`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "X-Connection-Api-Key": SLACK_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: channelId,
+          text: slackMessage,
+          username: "WerkBot Lead Alert",
+          icon_emoji: ":robot_face:",
+        }),
+      });
+
+      slackResult = await slackResp.json();
+      if (!slackResp.ok || !slackResult.ok) {
+        console.error("Slack API error:", JSON.stringify(slackResult));
       }
+    } else {
+      console.error("No suitable Slack channel found (tried: leads, sales, general)");
     }
 
-    const slackResp = await fetch(`${GATEWAY_URL}/chat.postMessage`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": SLACK_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        channel: targetChannel,
-        text: slackMessage,
-        username: "Lead Bot",
-        icon_emoji: emoji,
-      }),
-    });
-
-    const slackResult = await slackResp.json();
-    if (!slackResp.ok || !slackResult.ok) {
-      console.error("Slack API error:", JSON.stringify(slackResult));
-    }
+    // Send email notifications
+    sendEmailNotifications(lead, convoText).catch((err) =>
+      console.error("Email notification error:", err)
+    );
 
     return new Response(
       JSON.stringify({
