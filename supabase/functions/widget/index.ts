@@ -25,9 +25,12 @@ const WIDGET_JS = `
     #werkbot-btn svg{width:28px;height:28px;}
     #werkbot-panel{position:fixed;bottom:96px;right:24px;z-index:999999;width:380px;max-width:calc(100vw - 32px);height:500px;max-height:70vh;background:#fff;border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;overflow:hidden;transition:transform .25s ease,opacity .25s ease;transform-origin:bottom right;}
     #werkbot-panel.wb-hidden{transform:scale(0);opacity:0;pointer-events:none;}
-    #werkbot-header{background:#162040;color:#fff;padding:14px 18px;flex-shrink:0;border-radius:16px 16px 0 0;}
+    #werkbot-header{background:#162040;color:#fff;padding:14px 18px;flex-shrink:0;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;}
     #werkbot-header h3{font-size:14px;font-weight:600;margin:0;}
     #werkbot-header p{font-size:12px;opacity:.8;margin:2px 0 0;}
+    #werkbot-close{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0;}
+    #werkbot-close:hover{background:rgba(255,255,255,.3);}
+    #werkbot-close svg{width:16px;height:16px;}
     #werkbot-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
     .wb-msg{max-width:80%;padding:10px 16px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;}
     .wb-user{align-self:flex-end;background:#7acc29;color:#162040;border-bottom-right-radius:6px;}
