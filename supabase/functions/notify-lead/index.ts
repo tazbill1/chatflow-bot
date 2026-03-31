@@ -34,6 +34,9 @@ serve(async (req) => {
       email: lead.email,
       type: lead.type,
       summary: lead.summary || null,
+      business: lead.business || null,
+      phone: lead.phone || null,
+      contact_preference: lead.contact_preference || null,
       conversation: conversation || null,
     });
 
