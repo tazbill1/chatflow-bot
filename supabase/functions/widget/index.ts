@@ -9,8 +9,10 @@ const WIDGET_JS = `
   window.__werkbot_loaded = true;
 
   var CHAT_URL = "${SUPABASE_URL}/functions/v1/chat";
+  var TRACK_URL = "${SUPABASE_URL}/functions/v1/track-session";
   var ANON_KEY = "${ANON_KEY}";
   var STORAGE_KEY = "werkbot-chat-history";
+  var SESSION_KEY = "werkbot-session-id";
 
   var LEAD_RE = /\\[LEAD_CAPTURED\\]\\s*name:\\s*(.+)\\s*email:\\s*(.+)\\s*type:\\s*(.+)\\s*summary:\\s*(.+)\\s*\\[\\/LEAD_CAPTURED\\]/;
   var LEAD_STRIP_RE = /\\[LEAD_CAPTURED\\][\\s\\S]*?\\[\\/LEAD_CAPTURED\\]/;
@@ -42,6 +44,34 @@ const WIDGET_JS = `
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(h));}catch(e){}
   }
 
+  function getSessionId(){
+    var id = sessionStorage.getItem(SESSION_KEY);
+    if(!id){ id = crypto.randomUUID(); sessionStorage.setItem(SESSION_KEY, id); }
+    return id;
+  }
+
+  function trackSession(msgCount, ledToLead){
+    fetch(TRACK_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+ANON_KEY},
+      body:JSON.stringify({session_id:getSessionId(),message_count:msgCount,led_to_lead:ledToLead})
+    }).catch(function(){});
+  }
+
+  function playSound(){
+    try{
+      var ctx=new(window.AudioContext||window.webkitAudioContext)();
+      var o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.frequency.value=660;o.type="sine";
+      g.gain.setValueAtTime(0.08,ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.3);
+      o.start(ctx.currentTime);o.stop(ctx.currentTime+0.3);
+    }catch(e){}
+  }
+
+  var QUICK_REPLIES = ["What is WerkandMe?","Book a Demo","I need support"];
+
   var style = document.createElement("style");
   style.textContent = \`
     #werkbot-root *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
@@ -53,27 +83,37 @@ const WIDGET_JS = `
     #werkbot-header{background:#162040;color:#fff;padding:14px 18px;flex-shrink:0;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;}
     #werkbot-header h3{font-size:14px;font-weight:600;margin:0;}
     #werkbot-header p{font-size:12px;opacity:.8;margin:2px 0 0;}
+    #werkbot-header-actions{display:flex;gap:6px;align-items:center;}
+    #werkbot-clear{background:rgba(255,255,255,.15);border:none;color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0;}
+    #werkbot-clear:hover{background:rgba(255,255,255,.3);}
     #werkbot-close{background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0;}
     #werkbot-close:hover{background:rgba(255,255,255,.4);}
     #werkbot-close svg{width:18px;height:18px;}
-    #werkbot-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
+    #werkbot-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain;}
     .wb-msg{max-width:80%;padding:10px 16px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;}
     .wb-msg a{color:#7acc29;text-decoration:underline;}
     .wb-user{align-self:flex-end;background:#7acc29;color:#162040;border-bottom-right-radius:6px;}
     .wb-bot{align-self:flex-start;background:#eef0f4;color:#1e2a3f;border-bottom-left-radius:6px;}
+    .wb-quick-replies{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 8px;}
+    .wb-quick-btn{background:#eef0f4;border:1px solid #d1d5db;color:#1e2a3f;font-size:12px;padding:6px 14px;border-radius:20px;cursor:pointer;transition:opacity .2s;}
+    .wb-quick-btn:hover{opacity:.7;}
+    .wb-retry{display:flex;justify-content:center;padding:4px 0;}
+    .wb-retry button{background:rgba(239,68,68,.1);color:#ef4444;border:none;font-size:12px;padding:4px 12px;border-radius:20px;cursor:pointer;display:flex;align-items:center;gap:4px;}
+    .wb-retry button:hover{background:rgba(239,68,68,.15);}
     #werkbot-input-wrap{padding:12px;border-top:1px solid #e5e7eb;flex-shrink:0;display:flex;gap:8px;}
     #werkbot-input{flex:1;border:none;background:#f3f4f6;border-radius:24px;padding:10px 18px;font-size:14px;outline:none;}
     #werkbot-input:focus{box-shadow:0 0 0 2px #7acc29;}
     #werkbot-send{width:40px;height:40px;border-radius:50%;border:none;background:#162040;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
     #werkbot-send:disabled{opacity:.4;cursor:default;}
     #werkbot-send svg{width:16px;height:16px;}
-    .wb-typing{display:flex;gap:4px;padding:10px 16px;}
-    .wb-typing span{width:8px;height:8px;background:#b0b8c8;border-radius:50%;animation:wbBounce .6s infinite alternate;}
-    .wb-typing span:nth-child(2){animation-delay:.2s;}
-    .wb-typing span:nth-child(3){animation-delay:.4s;}
+    .wb-typing{display:flex;gap:4px;padding:10px 16px;align-items:center;}
+    .wb-typing-label{font-size:11px;color:#6b7280;margin-right:4px;}
+    .wb-typing span.wb-dot{width:6px;height:6px;background:#b0b8c8;border-radius:50%;animation:wbBounce .6s infinite alternate;}
+    .wb-typing span.wb-dot:nth-child(2){animation-delay:.15s;}
+    .wb-typing span.wb-dot:nth-child(3){animation-delay:.3s;}
     @keyframes wbBounce{to{transform:translateY(-6px);opacity:.5;}}
     @media(max-width:480px){
-      #werkbot-panel{width:calc(100vw - 16px);right:8px;bottom:80px;height:60vh;}
+      #werkbot-panel{width:calc(100vw - 16px);right:8px;bottom:80px;height:calc(100vh - 100px);max-height:none;}
       #werkbot-btn{width:52px;height:52px;bottom:16px;right:16px;}
       #werkbot-close{width:36px;height:36px;}
       #werkbot-close svg{width:20px;height:20px;}
@@ -85,8 +125,9 @@ const WIDGET_JS = `
   root.id = "werkbot-root";
   root.innerHTML = \`
     <div id="werkbot-panel" class="wb-hidden">
-      <div id="werkbot-header"><div><h3>Werkbot</h3><p>Your WerkandMe assistant</p></div><button id="werkbot-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+      <div id="werkbot-header"><div><h3>Werkbot</h3><p>Your WerkandMe assistant</p></div><div id="werkbot-header-actions"><button id="werkbot-clear" title="Clear chat"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button><button id="werkbot-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div></div>
       <div id="werkbot-msgs"></div>
+      <div id="werkbot-quick-replies"></div>
       <div id="werkbot-input-wrap">
         <input id="werkbot-input" placeholder="Type your message..." />
         <button id="werkbot-send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
@@ -99,23 +140,57 @@ const WIDGET_JS = `
   var panel = document.getElementById("werkbot-panel");
   var btn = document.getElementById("werkbot-btn");
   var msgs = document.getElementById("werkbot-msgs");
+  var quickRepliesEl = document.getElementById("werkbot-quick-replies");
   var input = document.getElementById("werkbot-input");
   var sendBtn = document.getElementById("werkbot-send");
   var closeBtn = document.getElementById("werkbot-close");
+  var clearBtn = document.getElementById("werkbot-clear");
   var history = loadHistory();
   var loading = false;
+  var lastError = false;
 
   history.forEach(function(m){ addMsg(m.content, m.role==="user"?"user":"bot"); });
+  renderQuickReplies();
 
   btn.onclick = function(){
     panel.classList.toggle("wb-hidden");
     if(!panel.classList.contains("wb-hidden")) input.focus();
   };
   closeBtn.onclick = function(){ panel.classList.add("wb-hidden"); };
+  clearBtn.onclick = function(){
+    history = [{role:"assistant",content:"Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?"}];
+    saveHistory(history);
+    msgs.innerHTML = "";
+    history.forEach(function(m){ addMsg(m.content,"bot"); });
+    lastError = false;
+    renderQuickReplies();
+    localStorage.removeItem(STORAGE_KEY);
+  };
 
   input.oninput = function(){ sendBtn.disabled = !input.value.trim() || loading; };
   input.onkeydown = function(e){ if(e.key==="Enter"&&!sendBtn.disabled) send(); };
   sendBtn.onclick = send;
+
+  function renderQuickReplies(){
+    quickRepliesEl.innerHTML = "";
+    if(history.length===1 && history[0].role==="assistant" && !loading){
+      quickRepliesEl.className = "wb-quick-replies";
+      QUICK_REPLIES.forEach(function(label){
+        var b = document.createElement("button");
+        b.className = "wb-quick-btn";
+        b.textContent = label;
+        b.onclick = function(){ sendWithText(label); };
+        quickRepliesEl.appendChild(b);
+      });
+    } else {
+      quickRepliesEl.className = "";
+    }
+  }
+
+  function sendWithText(text){
+    input.value = text;
+    send();
+  }
 
   function addMsg(text, type){
     var d = document.createElement("div");
@@ -135,7 +210,7 @@ const WIDGET_JS = `
     var d = document.createElement("div");
     d.className = "wb-msg wb-bot wb-typing";
     d.id = "wb-typing";
-    d.innerHTML = "<span></span><span></span><span></span>";
+    d.innerHTML = '<span class="wb-typing-label">Werkbot is typing</span><span class="wb-dot"></span><span class="wb-dot"></span><span class="wb-dot"></span>';
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
   }
@@ -145,12 +220,14 @@ const WIDGET_JS = `
     var text = input.value.trim();
     if(!text||loading) return;
     loading = true;
+    lastError = false;
     input.value = "";
     sendBtn.disabled = true;
     addMsg(text,"user");
     history.push({role:"user",content:text});
     saveHistory(history);
     showTyping();
+    renderQuickReplies();
 
     try{
       var resp = await fetch(CHAT_URL,{
@@ -190,11 +267,15 @@ const WIDGET_JS = `
           }catch(e){buf=line+"\\n"+buf;break;}
         }
       }
+
+      playSound();
       history.push({role:"assistant",content:full});
       saveHistory(history);
 
-      // Send lead notification if captured
       var lead = extractLead(full);
+      var userMsgCount = history.filter(function(m){return m.role==="user"}).length;
+      trackSession(userMsgCount, !!lead);
+
       if(lead){
         fetch("${SUPABASE_URL}/functions/v1/notify-lead",{
           method:"POST",
@@ -204,11 +285,29 @@ const WIDGET_JS = `
       }
     }catch(e){
       hideTyping();
-      addMsg("Sorry, I'm having trouble connecting. Please try again.","bot");
+      lastError = true;
+      addMsg("Sorry, I'm having trouble connecting.","bot");
+      // Add retry button
+      var retry = document.createElement("div");
+      retry.className = "wb-retry";
+      retry.innerHTML = '<button>↻ Tap to retry</button>';
+      retry.querySelector("button").onclick = function(){
+        retry.remove();
+        // Remove error msg and failed user msg
+        if(msgs.lastChild) msgs.removeChild(msgs.lastChild);
+        if(msgs.lastChild) msgs.removeChild(msgs.lastChild);
+        history.pop(); // remove failed assistant
+        history.pop(); // remove user msg
+        saveHistory(history);
+        input.value = text;
+        send();
+      };
+      msgs.appendChild(retry);
     }finally{
       loading=false;
       sendBtn.disabled=!input.value.trim();
       input.focus();
+      renderQuickReplies();
     }
   }
 })();

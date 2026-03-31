@@ -7,7 +7,7 @@ export const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6">
+    <div className="fixed bottom-4 right-4 z-50 md:bottom-6 md:right-6 max-md:bottom-3 max-md:right-3">
       {/* Chat Panel */}
       <div
         className={cn(

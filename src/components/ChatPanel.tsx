@@ -7,7 +7,9 @@ import ReactMarkdown from "react-markdown";
 type Message = { role: "user" | "assistant"; content: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const TRACK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-session`;
 const STORAGE_KEY = "werkbot-chat-history";
+const SESSION_KEY = "werkbot-session-id";
 
 const LEAD_REGEX = /\[LEAD_CAPTURED\]\s*name:\s*(.+)\s*email:\s*(.+)\s*type:\s*(.+)\s*summary:\s*(.+)\s*\[\/LEAD_CAPTURED\]/;
 
@@ -24,6 +26,15 @@ function extractLead(text: string) {
     type: match[3].trim(),
     summary: match[4].trim(),
   };
+}
+
+function getSessionId(): string {
+  let id = sessionStorage.getItem(SESSION_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    sessionStorage.setItem(SESSION_KEY, id);
+  }
+  return id;
 }
 
 const DEFAULT_GREETING: Message = {
@@ -55,7 +66,6 @@ function saveMessages(messages: Message[]) {
   } catch {}
 }
 
-// Notification sound using Web Audio API
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -70,6 +80,22 @@ function playNotificationSound() {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.3);
   } catch {}
+}
+
+function trackSession(messageCount: number, ledToLead: boolean) {
+  const sessionId = getSessionId();
+  fetch(TRACK_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({
+      session_id: sessionId,
+      message_count: messageCount,
+      led_to_lead: ledToLead,
+    }),
+  }).catch(() => {});
 }
 
 interface ChatPanelProps {
@@ -187,11 +213,16 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
         }
       }
 
-      // Play notification sound when response is complete
       playNotificationSound();
 
       // Check for lead capture
       const lead = extractLead(assistantSoFar);
+      const ledToLead = !!lead;
+
+      // Track analytics
+      const userMsgCount = updatedMessages.filter(m => m.role === "user").length;
+      trackSession(userMsgCount, ledToLead);
+
       if (lead) {
         const finalMessages = [
           ...updatedMessages,
@@ -222,12 +253,10 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
 
   const handleRetry = () => {
     if (!lastFailedInput) return;
-    // Remove the last error message
     setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
     const retryInput = lastFailedInput;
     setLastError(null);
     setLastFailedInput(null);
-    // Remove the failed user message too
     setMessages((prev) => prev.filter((_, i) => i < prev.length - 1));
     handleSend(retryInput);
   };
@@ -240,7 +269,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   };
 
   return (
-    <div className="w-[calc(100vw-2rem)] max-w-sm md:w-96 h-[min(500px,70vh)] bg-card rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
+    <div className="w-[calc(100vw-2rem)] max-w-sm md:w-96 h-[min(500px,70vh)] max-md:h-[calc(100vh-6rem)] max-md:max-w-[calc(100vw-1rem)] bg-card rounded-2xl shadow-2xl border border-border flex flex-col overflow-hidden">
       {/* Header */}
       <div className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
         <div>
@@ -258,7 +287,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain">
         {messages.map((msg, i) => (
           <div key={i} className={cn("flex animate-fade-in", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div

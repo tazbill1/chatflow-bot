@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,8 +9,6 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
-
-
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -25,6 +24,24 @@ serve(async (req) => {
       );
     }
 
+    // Save lead to database
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { error: dbError } = await supabase.from("leads").insert({
+      name: lead.name,
+      email: lead.email,
+      type: lead.type,
+      summary: lead.summary || null,
+      conversation: conversation || null,
+    });
+
+    if (dbError) {
+      console.error("Failed to save lead to DB:", dbError);
+    }
+
+    // Send Slack notification
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -42,7 +59,6 @@ serve(async (req) => {
 
     const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
 
-    // Join the channel first (no-op if already a member)
     await fetch(`${GATEWAY_URL}/conversations.join`, {
       method: "POST",
       headers: {
@@ -73,11 +89,11 @@ serve(async (req) => {
       console.error("Slack API error:", JSON.stringify(slackResult));
     }
 
-
     return new Response(
       JSON.stringify({
         success: true,
         slack: slackResult.ok ?? false,
+        saved: !dbError,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
