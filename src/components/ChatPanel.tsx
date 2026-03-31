@@ -168,7 +168,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
             i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
           );
         }
-        return [...prev.slice(0, updatedMessages.length), { role: "assistant", content: assistantSoFar }];
+        return [...prev.slice(0, updatedMessages.length), { role: "assistant", content: assistantSoFar, timestamp: Date.now() }];
       });
     };
 
