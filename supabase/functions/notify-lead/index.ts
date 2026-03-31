@@ -89,11 +89,33 @@ serve(async (req) => {
       console.error("Slack API error:", JSON.stringify(slackResult));
     }
 
+    // Push to Zoho CRM
+    let zohoSuccess = false;
+    try {
+      const zohoUrl = `${supabaseUrl}/functions/v1/zoho-push-lead`;
+      const zohoResp = await fetch(zohoUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ lead }),
+      });
+      const zohoResult = await zohoResp.json();
+      zohoSuccess = zohoResult.success ?? false;
+      if (!zohoSuccess) {
+        console.error("Zoho push failed:", JSON.stringify(zohoResult));
+      }
+    } catch (zohoErr) {
+      console.error("Zoho push error:", zohoErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         slack: slackResult.ok ?? false,
         saved: !dbError,
+        zoho: zohoSuccess,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
