@@ -46,6 +46,7 @@ const DEFAULT_GREETING: Message = {
   role: "assistant",
   content:
     "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
+  timestamp: Date.now(),
 };
 
 const QUICK_REPLIES = [
