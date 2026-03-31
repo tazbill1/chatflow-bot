@@ -185,12 +185,16 @@ export default function Admin() {
     if (!authed) return;
     async function load() {
       setLoading(true);
-      const [leadsRes, sessionsRes] = await Promise.all([
-        supabase.from("leads").select("*").order("created_at", { ascending: false }).limit(100),
-        supabase.from("chat_sessions").select("*").order("last_message_at", { ascending: false }).limit(100),
-      ]);
-      if (leadsRes.data) setLeads(leadsRes.data as Lead[]);
-      if (sessionsRes.data) setSessions(sessionsRes.data as Session[]);
+      try {
+        const { data, error } = await supabase.functions.invoke("admin-data", {
+          body: { password: ADMIN_PASS },
+        });
+        if (error) throw error;
+        if (data?.leads) setLeads(data.leads as Lead[]);
+        if (data?.sessions) setSessions(data.sessions as Session[]);
+      } catch (err) {
+        console.error("Failed to load admin data:", err);
+      }
       setLoading(false);
     }
     load();
