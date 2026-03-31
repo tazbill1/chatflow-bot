@@ -119,12 +119,64 @@ serve(async (req) => {
       console.error("Zoho push error:", zohoErr);
     }
 
+    // Send email notification via SendGrid
+    let emailSuccess = false;
+    const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY");
+    if (SENDGRID_API_KEY) {
+      try {
+        const emailSubject = `${emoji} New ${typeLabel}: ${lead.name}`;
+        const emailHtml = `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+            <h2 style="color:#1a1a2e;">${emoji} New ${typeLabel}</h2>
+            <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+              <tr><td style="padding:8px;font-weight:bold;color:#555;">Name</td><td style="padding:8px;">${lead.name}</td></tr>
+              <tr style="background:#f5f5f5;"><td style="padding:8px;font-weight:bold;color:#555;">Email</td><td style="padding:8px;"><a href="mailto:${lead.email}">${lead.email}</a></td></tr>
+              ${lead.business ? `<tr><td style="padding:8px;font-weight:bold;color:#555;">Business</td><td style="padding:8px;">${lead.business}</td></tr>` : ""}
+              ${lead.phone ? `<tr style="background:#f5f5f5;"><td style="padding:8px;font-weight:bold;color:#555;">Phone</td><td style="padding:8px;">${lead.phone}</td></tr>` : ""}
+              ${lead.contact_preference ? `<tr><td style="padding:8px;font-weight:bold;color:#555;">Preferred Contact</td><td style="padding:8px;">${lead.contact_preference}</td></tr>` : ""}
+              <tr style="background:#f5f5f5;"><td style="padding:8px;font-weight:bold;color:#555;">Summary</td><td style="padding:8px;">${lead.summary || "N/A"}</td></tr>
+            </table>
+            <h3 style="color:#1a1a2e;margin-top:24px;">Conversation</h3>
+            <div style="background:#f9f9f9;border-radius:8px;padding:16px;font-size:14px;line-height:1.6;">
+              ${conversation.map((m: { role: string; content: string }) =>
+                `<p style="margin:8px 0;"><strong>${m.role === "user" ? "👤 Customer" : "🤖 Werkbot"}:</strong> ${m.content}</p>`
+              ).join("")}
+            </div>
+          </div>`;
+
+        const sgResp = await fetch(SENDGRID_API_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SENDGRID_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            personalizations: [{ to: NOTIFY_EMAILS.map((e) => ({ email: e })) }],
+            from: { email: "leads@werkandme.com", name: "WerkBot Lead Alert" },
+            subject: emailSubject,
+            content: [{ type: "text/html", value: emailHtml }],
+          }),
+        });
+
+        emailSuccess = sgResp.status >= 200 && sgResp.status < 300;
+        if (!emailSuccess) {
+          const sgError = await sgResp.text();
+          console.error("SendGrid error:", sgResp.status, sgError);
+        }
+      } catch (emailErr) {
+        console.error("Email notification error:", emailErr);
+      }
+    } else {
+      console.warn("SENDGRID_API_KEY not set, skipping email notification");
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         slack: slackResult.ok ?? false,
         saved: !dbError,
         zoho: zohoSuccess,
+        email: emailSuccess,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
