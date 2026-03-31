@@ -14,9 +14,6 @@ async function getAccessToken(): Promise<string> {
   const clientSecret = Deno.env.get("ZOHO_CLIENT_SECRET");
   const refreshToken = Deno.env.get("ZOHO_REFRESH_TOKEN");
 
-  console.log("ZOHO_CLIENT_ID length:", clientId?.length, "starts:", clientId?.substring(0, 8));
-  console.log("ZOHO_CLIENT_SECRET length:", clientSecret?.length);
-  console.log("ZOHO_REFRESH_TOKEN length:", refreshToken?.length, "starts:", refreshToken?.substring(0, 8));
 
   if (!clientId) throw new Error("ZOHO_CLIENT_ID is not configured");
   if (!clientSecret) throw new Error("ZOHO_CLIENT_SECRET is not configured");

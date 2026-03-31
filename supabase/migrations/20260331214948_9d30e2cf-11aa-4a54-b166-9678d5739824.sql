@@ -1,0 +1,2 @@
+CREATE POLICY "Allow anonymous select on leads" ON public.leads FOR SELECT TO anon USING (true);
+CREATE POLICY "Allow anonymous select on chat_sessions" ON public.chat_sessions FOR SELECT TO anon USING (true);

@@ -14,13 +14,15 @@ const WIDGET_JS = `
   var STORAGE_KEY = "werkbot-chat-history";
   var SESSION_KEY = "werkbot-session-id";
 
-  var LEAD_RE = /\\[LEAD_CAPTURED\\]\\s*name:\\s*(.+)\\s*email:\\s*(.+)\\s*type:\\s*(.+)\\s*summary:\\s*(.+)\\s*\\[\\/LEAD_CAPTURED\\]/;
+  var LEAD_RE = /\\[LEAD_CAPTURED\\]\\s*name:\\s*(.+)\\s*email:\\s*(.+)\\s*business:\\s*(.+)\\s*phone:\\s*(.+)\\s*contact_preference:\\s*(.+)\\s*type:\\s*(.+)\\s*summary:\\s*(.+)\\s*\\[\\/LEAD_CAPTURED\\]/;
   var LEAD_STRIP_RE = /\\[LEAD_CAPTURED\\][\\s\\S]*?\\[\\/LEAD_CAPTURED\\]/;
   function stripLead(t){ return t.replace(LEAD_STRIP_RE,"").trim(); }
   function extractLead(t){
     var m = t.match(LEAD_RE);
     if(!m) return null;
-    return {name:m[1].trim(),email:m[2].trim(),type:m[3].trim(),summary:m[4].trim()};
+    var phone = m[4].trim();
+    var contactPref = m[5].trim();
+    return {name:m[1].trim(),email:m[2].trim(),business:m[3].trim(),phone:phone.toLowerCase()==="none"?null:phone,contact_preference:contactPref.toLowerCase()==="none"?null:contactPref,type:m[6].trim(),summary:m[7].trim()};
   }
 
   function simpleMarkdown(text){
