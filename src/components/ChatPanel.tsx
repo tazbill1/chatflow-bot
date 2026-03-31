@@ -151,7 +151,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
     setLastError(null);
     setLastFailedInput(null);
 
-    const userMsg: Message = { role: "user", content: trimmed };
+    const userMsg: Message = { role: "user", content: trimmed, timestamp: Date.now() };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     if (!overrideInput) setInput("");
