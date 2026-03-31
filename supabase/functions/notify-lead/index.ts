@@ -8,37 +8,8 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const NOTIFICATION_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
+const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
 
-async function findChannelByName(
-  targetNames: string[],
-  lovableKey: string,
-  slackKey: string
-): Promise<string | null> {
-  let cursor = "";
-  do {
-    const url = `${GATEWAY_URL}/conversations.list?types=public_channel&limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": slackKey,
-      },
-    });
-    const data = await resp.json();
-    if (!data.ok) {
-      console.error("conversations.list error:", data.error);
-      break;
-    }
-    for (const name of targetNames) {
-      const found = data.channels?.find(
-        (c: { name: string }) => c.name === name
-      );
-      if (found) return found.id;
-    }
-    cursor = data.response_metadata?.next_cursor || "";
-  } while (cursor);
-  return null;
-}
 
 async function sendEmailNotifications(
   lead: { name: string; email: string; type: string; summary?: string },
@@ -131,37 +102,24 @@ serve(async (req) => {
 
     const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
 
-    // Find channel by name with pagination
-    const channelId = await findChannelByName(
-      ["leads", "sales", "general"],
-      LOVABLE_API_KEY,
-      SLACK_API_KEY
-    );
+    const slackResp = await fetch(`${GATEWAY_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": SLACK_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: SLACK_CHANNEL_ID,
+        text: slackMessage,
+        username: "WerkBot Lead Alert",
+        icon_emoji: ":robot_face:",
+      }),
+    });
 
-    let slackResult: Record<string, unknown> = { ok: false, error: "no_channel_found" };
-
-    if (channelId) {
-      const slackResp = await fetch(`${GATEWAY_URL}/chat.postMessage`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": SLACK_API_KEY,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channel: channelId,
-          text: slackMessage,
-          username: "WerkBot Lead Alert",
-          icon_emoji: ":robot_face:",
-        }),
-      });
-
-      slackResult = await slackResp.json();
-      if (!slackResp.ok || !slackResult.ok) {
-        console.error("Slack API error:", JSON.stringify(slackResult));
-      }
-    } else {
-      console.error("No suitable Slack channel found (tried: leads, sales, general)");
+    const slackResult = await slackResp.json();
+    if (!slackResult.ok) {
+      console.error("Slack API error:", JSON.stringify(slackResult));
     }
 
     // Send email notifications
