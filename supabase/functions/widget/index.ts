@@ -1,9 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ? undefined : undefined;
-
-// We use the anon key that's public anyway
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 const WIDGET_JS = `
@@ -13,9 +10,37 @@ const WIDGET_JS = `
 
   var CHAT_URL = "${SUPABASE_URL}/functions/v1/chat";
   var ANON_KEY = "${ANON_KEY}";
+  var STORAGE_KEY = "werkbot-chat-history";
 
-  var LEAD_RE = /\\[LEAD_CAPTURED\\][\\s\\S]*?\\[\\/LEAD_CAPTURED\\]/;
-  function stripLead(t){ return t.replace(LEAD_RE,"").trim(); }
+  var LEAD_RE = /\\[LEAD_CAPTURED\\]\\s*name:\\s*(.+)\\s*email:\\s*(.+)\\s*type:\\s*(.+)\\s*summary:\\s*(.+)\\s*\\[\\/LEAD_CAPTURED\\]/;
+  var LEAD_STRIP_RE = /\\[LEAD_CAPTURED\\][\\s\\S]*?\\[\\/LEAD_CAPTURED\\]/;
+  function stripLead(t){ return t.replace(LEAD_STRIP_RE,"").trim(); }
+  function extractLead(t){
+    var m = t.match(LEAD_RE);
+    if(!m) return null;
+    return {name:m[1].trim(),email:m[2].trim(),type:m[3].trim(),summary:m[4].trim()};
+  }
+
+  function simpleMarkdown(text){
+    var s = text
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/\\*\\*(.+?)\\*\\*/g,"<strong>$1</strong>")
+      .replace(/\\*(.+?)\\*/g,"<em>$1</em>")
+      .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#7acc29;text-decoration:underline;">$1</a>')
+      .replace(/(^|\\s)(https?:\\/\\/[^\\s<]+)/g,'$1<a href="$2" target="_blank" rel="noopener noreferrer" style="color:#7acc29;text-decoration:underline;">$2</a>');
+    return s;
+  }
+
+  function loadHistory(){
+    try{
+      var s=localStorage.getItem(STORAGE_KEY);
+      if(s){var p=JSON.parse(s);if(Array.isArray(p)&&p.length>0)return p;}
+    }catch(e){}
+    return [{role:"assistant",content:"Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?"}];
+  }
+  function saveHistory(h){
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(h));}catch(e){}
+  }
 
   var style = document.createElement("style");
   style.textContent = \`
@@ -28,11 +53,12 @@ const WIDGET_JS = `
     #werkbot-header{background:#162040;color:#fff;padding:14px 18px;flex-shrink:0;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;}
     #werkbot-header h3{font-size:14px;font-weight:600;margin:0;}
     #werkbot-header p{font-size:12px;opacity:.8;margin:2px 0 0;}
-    #werkbot-close{background:rgba(255,255,255,.15);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0;}
-    #werkbot-close:hover{background:rgba(255,255,255,.3);}
-    #werkbot-close svg{width:16px;height:16px;}
+    #werkbot-close{background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.4);color:#fff;width:32px;height:32px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s;flex-shrink:0;}
+    #werkbot-close:hover{background:rgba(255,255,255,.4);}
+    #werkbot-close svg{width:18px;height:18px;}
     #werkbot-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;}
     .wb-msg{max-width:80%;padding:10px 16px;border-radius:16px;font-size:14px;line-height:1.5;word-wrap:break-word;}
+    .wb-msg a{color:#7acc29;text-decoration:underline;}
     .wb-user{align-self:flex-end;background:#7acc29;color:#162040;border-bottom-right-radius:6px;}
     .wb-bot{align-self:flex-start;background:#eef0f4;color:#1e2a3f;border-bottom-left-radius:6px;}
     #werkbot-input-wrap{padding:12px;border-top:1px solid #e5e7eb;flex-shrink:0;display:flex;gap:8px;}
@@ -49,6 +75,8 @@ const WIDGET_JS = `
     @media(max-width:480px){
       #werkbot-panel{width:calc(100vw - 16px);right:8px;bottom:80px;height:60vh;}
       #werkbot-btn{width:52px;height:52px;bottom:16px;right:16px;}
+      #werkbot-close{width:36px;height:36px;}
+      #werkbot-close svg{width:20px;height:20px;}
     }
   \`;
   document.head.appendChild(style);
@@ -57,7 +85,7 @@ const WIDGET_JS = `
   root.id = "werkbot-root";
   root.innerHTML = \`
     <div id="werkbot-panel" class="wb-hidden">
-      <div id="werkbot-header"><div><h3>Werkbot</h3><p>Your WerkandMe assistant</p></div><button id="werkbot-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+      <div id="werkbot-header"><div><h3>Werkbot</h3><p>Your WerkandMe assistant</p></div><button id="werkbot-close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
       <div id="werkbot-msgs"></div>
       <div id="werkbot-input-wrap">
         <input id="werkbot-input" placeholder="Type your message..." />
@@ -74,10 +102,10 @@ const WIDGET_JS = `
   var input = document.getElementById("werkbot-input");
   var sendBtn = document.getElementById("werkbot-send");
   var closeBtn = document.getElementById("werkbot-close");
-  var history = [{role:"assistant",content:"Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?"}];
+  var history = loadHistory();
   var loading = false;
 
-  addMsg(history[0].content, "bot");
+  history.forEach(function(m){ addMsg(m.content, m.role==="user"?"user":"bot"); });
 
   btn.onclick = function(){
     panel.classList.toggle("wb-hidden");
@@ -92,7 +120,12 @@ const WIDGET_JS = `
   function addMsg(text, type){
     var d = document.createElement("div");
     d.className = "wb-msg wb-" + (type==="user"?"user":"bot");
-    d.textContent = stripLead(text);
+    var clean = stripLead(text);
+    if(type==="bot"){
+      d.innerHTML = simpleMarkdown(clean);
+    } else {
+      d.textContent = clean;
+    }
     msgs.appendChild(d);
     msgs.scrollTop = msgs.scrollHeight;
     return d;
@@ -116,6 +149,7 @@ const WIDGET_JS = `
     sendBtn.disabled = true;
     addMsg(text,"user");
     history.push({role:"user",content:text});
+    saveHistory(history);
     showTyping();
 
     try{
@@ -150,20 +184,22 @@ const WIDGET_JS = `
             if(c){
               full+=c;
               if(!botEl) botEl=addMsg(stripLead(full),"bot");
-              else botEl.textContent=stripLead(full);
+              else botEl.innerHTML=simpleMarkdown(stripLead(full));
               msgs.scrollTop=msgs.scrollHeight;
             }
           }catch(e){buf=line+"\\n"+buf;break;}
         }
       }
       history.push({role:"assistant",content:full});
+      saveHistory(history);
 
       // Send lead notification if captured
-      if(LEAD_RE.test(full)){
+      var lead = extractLead(full);
+      if(lead){
         fetch("${SUPABASE_URL}/functions/v1/notify-lead",{
           method:"POST",
           headers:{"Content-Type":"application/json","Authorization":"Bearer "+ANON_KEY},
-          body:JSON.stringify({lead:{},conversation:history.map(function(m){return{role:m.role,content:stripLead(m.content)}})})
+          body:JSON.stringify({lead:lead,conversation:history.map(function(m){return{role:m.role,content:stripLead(m.content)}})})
         }).catch(function(){});
       }
     }catch(e){
