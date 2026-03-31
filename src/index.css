@@ -8,41 +8,41 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 220 20% 97%;
-    --foreground: 220 25% 10%;
+    --background: 224 60% 16%;
+    --foreground: 0 0% 100%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card: 224 55% 20%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover: 224 55% 20%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 230 75% 57%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 93 60% 50%;
+    --primary-foreground: 224 60% 16%;
 
-    --secondary: 220 20% 94%;
-    --secondary-foreground: 220 25% 10%;
+    --secondary: 224 45% 25%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 224 40% 22%;
+    --muted-foreground: 210 20% 70%;
 
-    --accent: 170 65% 45%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 93 60% 50%;
+    --accent-foreground: 224 60% 16%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 230 75% 57%;
+    --border: 224 35% 28%;
+    --input: 224 35% 28%;
+    --ring: 93 60% 50%;
 
     --radius: 0.75rem;
 
-    --chat-bubble-user: 230 75% 57%;
-    --chat-bubble-user-foreground: 0 0% 100%;
-    --chat-bubble-bot: 220 15% 92%;
-    --chat-bubble-bot-foreground: 220 25% 15%;
-    --chat-header: 230 75% 57%;
+    --chat-bubble-user: 93 60% 50%;
+    --chat-bubble-user-foreground: 224 60% 16%;
+    --chat-bubble-bot: 224 40% 22%;
+    --chat-bubble-bot-foreground: 210 20% 90%;
+    --chat-header: 224 65% 14%;
     --chat-header-foreground: 0 0% 100%;
 
     --sidebar-background: 0 0% 98%;
