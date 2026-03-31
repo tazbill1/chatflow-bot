@@ -49,29 +49,38 @@ export type Database = {
       }
       leads: {
         Row: {
+          business: string | null
+          contact_preference: string | null
           conversation: Json | null
           created_at: string
           email: string
           id: string
           name: string
+          phone: string | null
           summary: string | null
           type: string
         }
         Insert: {
+          business?: string | null
+          contact_preference?: string | null
           conversation?: Json | null
           created_at?: string
           email: string
           id?: string
           name: string
+          phone?: string | null
           summary?: string | null
           type: string
         }
         Update: {
+          business?: string | null
+          contact_preference?: string | null
           conversation?: Json | null
           created_at?: string
           email?: string
           id?: string
           name?: string
+          phone?: string | null
           summary?: string | null
           type?: string
         }

@@ -47,6 +47,9 @@ async function pushLeadToZoho(lead: {
   email: string;
   type: string;
   summary?: string;
+  business?: string;
+  phone?: string;
+  contact_preference?: string;
 }) {
   const accessToken = await getAccessToken();
 
@@ -55,14 +58,24 @@ async function pushLeadToZoho(lead: {
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || firstName;
 
-  const zohoLead = {
+  const description = [
+    lead.summary || "",
+    lead.contact_preference ? `Preferred contact: ${lead.contact_preference}` : "",
+  ].filter(Boolean).join("\n");
+
+  const zohoLead: Record<string, string> = {
     First_Name: firstName,
     Last_Name: lastName || firstName,
     Email: lead.email,
+    Company: lead.business || "Unknown",
     Lead_Source: "Werkbot Chat",
-    Description: lead.summary || "",
+    Description: description,
     Lead_Status: "Not Contacted",
   };
+
+  if (lead.phone) {
+    zohoLead.Phone = lead.phone;
+  }
 
   const resp = await fetch(`${ZOHO_CRM_URL}/Leads`, {
     method: "POST",
