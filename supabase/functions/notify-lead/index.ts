@@ -9,6 +9,8 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
+const NOTIFY_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
+const SENDGRID_API_URL = "https://api.sendgrid.com/v3/mail/send";
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
