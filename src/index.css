@@ -11,8 +11,8 @@ All colors MUST be HSL.
     --background: 224 60% 16%;
     --foreground: 0 0% 100%;
 
-    --card: 224 55% 20%;
-    --card-foreground: 0 0% 100%;
+    --card: 0 0% 100%;
+    --card-foreground: 224 25% 15%;
 
     --popover: 224 55% 20%;
     --popover-foreground: 0 0% 100%;
@@ -23,8 +23,8 @@ All colors MUST be HSL.
     --secondary: 224 45% 25%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 224 40% 22%;
-    --muted-foreground: 210 20% 70%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 46%;
 
     --accent: 93 60% 50%;
     --accent-foreground: 224 60% 16%;
@@ -32,16 +32,16 @@ All colors MUST be HSL.
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 224 35% 28%;
-    --input: 224 35% 28%;
+    --border: 220 15% 88%;
+    --input: 220 15% 88%;
     --ring: 93 60% 50%;
 
     --radius: 0.75rem;
 
     --chat-bubble-user: 93 60% 50%;
     --chat-bubble-user-foreground: 224 60% 16%;
-    --chat-bubble-bot: 224 40% 22%;
-    --chat-bubble-bot-foreground: 210 20% 90%;
+    --chat-bubble-bot: 220 15% 94%;
+    --chat-bubble-bot-foreground: 224 25% 15%;
     --chat-header: 224 65% 14%;
     --chat-header-foreground: 0 0% 100%;
 
