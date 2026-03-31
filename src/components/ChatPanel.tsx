@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Send, Loader2, Trash2, RotateCcw } from "lucide-react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; timestamp?: number };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const TRACK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-session`;
@@ -46,6 +47,7 @@ const DEFAULT_GREETING: Message = {
   role: "assistant",
   content:
     "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
+  timestamp: Date.now(),
 };
 
 const QUICK_REPLIES = [
@@ -150,7 +152,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
     setLastError(null);
     setLastFailedInput(null);
 
-    const userMsg: Message = { role: "user", content: trimmed };
+    const userMsg: Message = { role: "user", content: trimmed, timestamp: Date.now() };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     if (!overrideInput) setInput("");
@@ -167,7 +169,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
             i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
           );
         }
-        return [...prev.slice(0, updatedMessages.length), { role: "assistant", content: assistantSoFar }];
+        return [...prev.slice(0, updatedMessages.length), { role: "assistant", content: assistantSoFar, timestamp: Date.now() }];
       });
     };
 
@@ -294,7 +296,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain">
         {messages.map((msg, i) => (
-          <div key={i} className={cn("flex animate-fade-in", msg.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={cn("flex flex-col animate-fade-in", msg.role === "user" ? "items-end" : "items-start")}>
             <div
               className={cn(
                 "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
@@ -321,6 +323,11 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
                 stripLeadMarker(msg.content)
               )}
             </div>
+            {msg.timestamp && (
+              <span className="text-[10px] text-muted-foreground mt-0.5 px-1">
+                {format(new Date(msg.timestamp), "h:mm a")}
+              </span>
+            )}
           </div>
         ))}
 
