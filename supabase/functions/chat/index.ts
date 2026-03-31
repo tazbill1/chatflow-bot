@@ -147,6 +147,9 @@ When you detect a lead, end your message with exactly this (hidden from user):
 [LEAD_CAPTURED]
 name: <name>
 email: <email>
+business: <business name>
+phone: <phone number or "none">
+contact_preference: <email|phone|text or "none">
 type: <sales|service>
 summary: <one-line summary of their need>
 [/LEAD_CAPTURED]`;

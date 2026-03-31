@@ -57,7 +57,11 @@ serve(async (req) => {
       )
       .join("\n\n");
 
-    const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
+    const phoneLine = lead.phone ? `\n*Phone:* ${lead.phone}` : "";
+    const contactPrefLine = lead.contact_preference ? `\n*Preferred Contact:* ${lead.contact_preference}` : "";
+    const businessLine = lead.business ? `\n*Business:* ${lead.business}` : "";
+
+    const slackMessage = `${emoji} *New ${typeLabel}*\n\n*Name:* ${lead.name}\n*Email:* ${lead.email}${businessLine}${phoneLine}${contactPrefLine}\n*Summary:* ${lead.summary || "N/A"}\n\n─── Conversation ───\n${convoText}`;
 
     await fetch(`${GATEWAY_URL}/conversations.join`, {
       method: "POST",

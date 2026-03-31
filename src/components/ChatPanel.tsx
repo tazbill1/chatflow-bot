@@ -11,7 +11,7 @@ const TRACK_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/track-sessi
 const STORAGE_KEY = "werkbot-chat-history";
 const SESSION_KEY = "werkbot-session-id";
 
-const LEAD_REGEX = /\[LEAD_CAPTURED\]\s*name:\s*(.+)\s*email:\s*(.+)\s*type:\s*(.+)\s*summary:\s*(.+)\s*\[\/LEAD_CAPTURED\]/;
+const LEAD_REGEX = /\[LEAD_CAPTURED\]\s*name:\s*(.+)\s*email:\s*(.+)\s*business:\s*(.+)\s*phone:\s*(.+)\s*contact_preference:\s*(.+)\s*type:\s*(.+)\s*summary:\s*(.+)\s*\[\/LEAD_CAPTURED\]/;
 
 function stripLeadMarker(text: string) {
   return text.replace(/\[LEAD_CAPTURED\][\s\S]*?\[\/LEAD_CAPTURED\]/, "").trim();
@@ -20,11 +20,16 @@ function stripLeadMarker(text: string) {
 function extractLead(text: string) {
   const match = text.match(LEAD_REGEX);
   if (!match) return null;
+  const phone = match[4].trim();
+  const contactPref = match[5].trim();
   return {
     name: match[1].trim(),
     email: match[2].trim(),
-    type: match[3].trim(),
-    summary: match[4].trim(),
+    business: match[3].trim(),
+    phone: phone.toLowerCase() === "none" ? null : phone,
+    contact_preference: contactPref.toLowerCase() === "none" ? null : contactPref,
+    type: match[6].trim(),
+    summary: match[7].trim(),
   };
 }
 
