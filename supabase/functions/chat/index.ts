@@ -102,7 +102,6 @@ Each dealership gets a **dedicated Culture Coach** — with you from day one, br
 
 ## Getting Started
 - Book a meeting: https://calendar.app.google/3jBnAAUKEu8umqaEA
-- Request a demo: https://www.werkandme.com/demo
 
 ## Your capabilities:
 - **Sales**: Answer questions about WerkandMe features, use cases, ROI, implementation, and help prospects understand value. Encourage them to book a demo or leave contact info.

@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import ReactMarkdown from "react-markdown";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+const STORAGE_KEY = "werkbot-chat-history";
 
 const LEAD_REGEX = /\[LEAD_CAPTURED\]\s*name:\s*(.+)\s*email:\s*(.+)\s*type:\s*(.+)\s*summary:\s*(.+)\s*\[\/LEAD_CAPTURED\]/;
 
@@ -24,18 +26,35 @@ function extractLead(text: string) {
   };
 }
 
+const DEFAULT_GREETING: Message = {
+  role: "assistant",
+  content:
+    "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
+};
+
+function loadMessages(): Message[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [DEFAULT_GREETING];
+}
+
+function saveMessages(messages: Message[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  } catch {}
+}
+
 interface ChatPanelProps {
   onClose: () => void;
 }
 
 export const ChatPanel = ({ onClose }: ChatPanelProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hey there! 👋 I'm Werkbot, your WerkandMe assistant. Whether you're curious about our platform or need support, I'm here to help. What can I do for you?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -43,6 +62,10 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
+
+  useEffect(() => {
+    saveMessages(messages);
   }, [messages]);
 
   const sendNotification = async (lead: ReturnType<typeof extractLead>, conversation: Message[]) => {
@@ -142,7 +165,6 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
           { role: "assistant" as const, content: assistantSoFar },
         ];
         sendNotification(lead, finalMessages);
-        // Clean the displayed message
         setMessages((prev) =>
           prev.map((m, i) =>
             i === prev.length - 1
@@ -168,7 +190,7 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
       {/* Header */}
       <div className="bg-chat-header text-chat-header-foreground px-4 py-3 flex items-center justify-between shrink-0 rounded-t-2xl">
         <div>
-        <h3 className="font-semibold text-sm">Werkbot</h3>
+          <h3 className="font-semibold text-sm">Werkbot</h3>
           <p className="text-xs opacity-80">Your WerkandMe assistant</p>
         </div>
       </div>
@@ -185,7 +207,23 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
                   : "bg-chat-bubble-bot text-chat-bubble-bot-foreground rounded-bl-md"
               )}
             >
-              {stripLeadMarker(msg.content)}
+              {msg.role === "assistant" ? (
+                <div className="prose prose-sm prose-p:my-1 prose-ul:my-1 prose-li:my-0 prose-a:text-primary prose-a:underline max-w-none">
+                  <ReactMarkdown
+                    components={{
+                      a: ({ href, children }) => (
+                        <a href={href} target="_blank" rel="noopener noreferrer">
+                          {children}
+                        </a>
+                      ),
+                    }}
+                  >
+                    {stripLeadMarker(msg.content)}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                stripLeadMarker(msg.content)
+              )}
             </div>
           </div>
         ))}
