@@ -73,10 +73,6 @@ serve(async (req) => {
       console.error("Slack API error:", JSON.stringify(slackResult));
     }
 
-    // Send email notifications
-    sendEmailNotifications(lead, convoText).catch((err) =>
-      console.error("Email notification error:", err)
-    );
 
     return new Response(
       JSON.stringify({
