@@ -101,7 +101,6 @@ The first 90 days make or break every hire.
 Each dealership gets a **dedicated Culture Coach** — with you from day one, bringing ideas, running the playbook, and doing the heavy lifting.
 
 ## Getting Started
-- Schedule a 1:1 demo: https://zbooking.us/1e8n6
 - Book a meeting: https://calendar.app.google/3jBnAAUKEu8umqaEA
 - Request a demo: https://www.werkandme.com/demo
 - Website: https://www.werkandme.com
