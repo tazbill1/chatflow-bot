@@ -10,36 +10,6 @@ const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const NOTIFICATION_EMAILS = ["tom@werkandme.com", "lilli@werkandme.com"];
 const SLACK_CHANNEL_ID = "C0AQ3FLAV4L"; // #chatbot channel
 
-async function findChannelByName(
-  targetNames: string[],
-  lovableKey: string,
-  slackKey: string
-): Promise<string | null> {
-  let cursor = "";
-  do {
-    const url = `${GATEWAY_URL}/conversations.list?types=public_channel&limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Connection-Api-Key": slackKey,
-      },
-    });
-    const data = await resp.json();
-    if (!data.ok) {
-      console.error("conversations.list error:", data.error);
-      break;
-    }
-    for (const name of targetNames) {
-      const found = data.channels?.find(
-        (c: { name: string }) => c.name === name
-      );
-      if (found) return found.id;
-    }
-    cursor = data.response_metadata?.next_cursor || "";
-  } while (cursor);
-  return null;
-}
 
 async function sendEmailNotifications(
   lead: { name: string; email: string; type: string; summary?: string },
