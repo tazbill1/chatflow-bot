@@ -83,6 +83,7 @@ const WIDGET_JS = `
     panel.classList.toggle("wb-hidden");
     if(!panel.classList.contains("wb-hidden")) input.focus();
   };
+  closeBtn.onclick = function(){ panel.classList.add("wb-hidden"); };
 
   input.oninput = function(){ sendBtn.disabled = !input.value.trim() || loading; };
   input.onkeydown = function(e){ if(e.key==="Enter"&&!sendBtn.disabled) send(); };
