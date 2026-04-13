@@ -109,6 +109,13 @@ interface ChatPanelProps {
   onClose: () => void;
 }
 
+const NUDGE_MESSAGES = [
+  "Still there? 😊 No rush — I'm here whenever you're ready!",
+  "Hey! Just checking in — anything else I can help with?",
+  "Take your time! I'll be right here if you have more questions. 👋",
+];
+const NUDGE_DELAY_MS = 120_000; // 2 minutes
+
 export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [input, setInput] = useState("");
@@ -117,6 +124,8 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   const [lastFailedInput, setLastFailedInput] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nudgeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nudgeCountRef = useRef(0);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -125,6 +134,34 @@ export const ChatPanel = ({ onClose }: ChatPanelProps) => {
   useEffect(() => {
     saveMessages(messages);
   }, [messages]);
+
+  // Re-engagement nudge: after the bot replies and user goes quiet for 2 min
+  useEffect(() => {
+    if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+
+    const lastMsg = messages[messages.length - 1];
+    // Only nudge if last message is from the bot, conversation has started (>1 msg), not loading, and we haven't nudged more than once
+    if (
+      lastMsg?.role === "assistant" &&
+      messages.length > 1 &&
+      !isLoading &&
+      nudgeCountRef.current < 1
+    ) {
+      nudgeTimerRef.current = setTimeout(() => {
+        const nudge = NUDGE_MESSAGES[Math.floor(Math.random() * NUDGE_MESSAGES.length)];
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: nudge, timestamp: Date.now() },
+        ]);
+        nudgeCountRef.current++;
+        playNotificationSound();
+      }, NUDGE_DELAY_MS);
+    }
+
+    return () => {
+      if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
+    };
+  }, [messages, isLoading]);
 
   const showQuickReplies = messages.length === 1 && messages[0].role === "assistant";
 
