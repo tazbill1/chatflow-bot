@@ -25,6 +25,7 @@ serve(async (req) => {
       throw new Error("ZOHO_CLIENT_ID or ZOHO_CLIENT_SECRET not configured");
     }
 
+    // Self Client apps do NOT use redirect_uri
     const resp = await fetch("https://accounts.zoho.com/oauth/v2/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -33,7 +34,6 @@ serve(async (req) => {
         client_id: clientId,
         client_secret: clientSecret,
         code: grant_token,
-        redirect_uri: "http://localhost",
       }),
     });
 
