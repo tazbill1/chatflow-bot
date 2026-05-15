@@ -39,7 +39,7 @@ async function getAccessToken(): Promise<string> {
   return data.access_token;
 }
 
-async function pushLeadToZoho(lead: {
+type Lead = {
   name: string;
   email: string;
   type: string;
@@ -47,10 +47,9 @@ async function pushLeadToZoho(lead: {
   business?: string;
   phone?: string;
   contact_preference?: string;
-}) {
-  const accessToken = await getAccessToken();
+};
 
-  // Split name into first/last
+async function pushLeadRecord(accessToken: string, lead: Lead) {
   const nameParts = lead.name.trim().split(/\s+/);
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || firstName;
@@ -70,9 +69,7 @@ async function pushLeadToZoho(lead: {
     Lead_Status: "Not Contacted",
   };
 
-  if (lead.phone) {
-    zohoLead.Phone = lead.phone;
-  }
+  if (lead.phone) zohoLead.Phone = lead.phone;
 
   const resp = await fetch(`${ZOHO_CRM_URL}/Leads`, {
     method: "POST",
@@ -85,15 +82,70 @@ async function pushLeadToZoho(lead: {
 
   const result = await resp.json();
   if (!resp.ok) {
-    throw new Error(`Zoho CRM API error [${resp.status}]: ${JSON.stringify(result)}`);
+    throw new Error(`Zoho Leads API error [${resp.status}]: ${JSON.stringify(result)}`);
   }
-
   const record = result.data?.[0];
   if (record?.code !== "SUCCESS") {
     console.error("Zoho lead creation issue:", JSON.stringify(record));
   }
+  return { module: "Leads", result };
+}
 
-  return result;
+async function pushCaseRecord(accessToken: string, lead: Lead) {
+  const subject = lead.summary
+    ? `Support: ${lead.summary.slice(0, 80)}`
+    : `Support request from ${lead.name}`;
+
+  const descriptionLines = [
+    `Name: ${lead.name}`,
+    `Email: ${lead.email}`,
+    lead.business ? `Business: ${lead.business}` : null,
+    lead.phone ? `Phone: ${lead.phone}` : null,
+    lead.contact_preference ? `Preferred contact: ${lead.contact_preference}` : null,
+    "",
+    "Summary:",
+    lead.summary || "(no summary provided)",
+  ].filter(Boolean);
+
+  const zohoCase: Record<string, string> = {
+    Subject: subject,
+    Description: descriptionLines.join("\n"),
+    Status: "New",
+    Case_Origin: "Web",
+    Priority: "Medium",
+    Type: "Question",
+    Email: lead.email,
+  };
+
+  if (lead.phone) zohoCase.Phone = lead.phone;
+
+  const resp = await fetch(`${ZOHO_CRM_URL}/Cases`, {
+    method: "POST",
+    headers: {
+      Authorization: `Zoho-oauthtoken ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data: [zohoCase] }),
+  });
+
+  const result = await resp.json();
+  if (!resp.ok) {
+    throw new Error(`Zoho Cases API error [${resp.status}]: ${JSON.stringify(result)}`);
+  }
+  const record = result.data?.[0];
+  if (record?.code !== "SUCCESS") {
+    console.error("Zoho case creation issue:", JSON.stringify(record));
+  }
+  return { module: "Cases", result };
+}
+
+async function pushLeadToZoho(lead: Lead) {
+  const accessToken = await getAccessToken();
+  // Route based on type: anything other than "sales" goes to Cases (support tickets)
+  const isSupport = lead.type && lead.type.toLowerCase() !== "sales";
+  return isSupport
+    ? await pushCaseRecord(accessToken, lead)
+    : await pushLeadRecord(accessToken, lead);
 }
 
 serve(async (req) => {
